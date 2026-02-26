@@ -7,19 +7,30 @@ import os
 from datetime import datetime
 import base64
 import pickle
+import io
 
+# ==============================
+# GOOGLE DRIVE OAUTH (DESDE VARIABLE DE ENTORNO)
+# ==============================
+from google.auth.transport.requests import Request
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
 
 app = Flask(__name__)
 
-# ==============================
-# GOOGLE DRIVE (USANDO TOKEN YA GENERADO)
-# ==============================
+SCOPES = ['https://www.googleapis.com/auth/drive.file']
 
 def obtener_servicio_drive():
-    with open('token.pickle', 'rb') as token:
-        creds = pickle.load(token)
+    creds = None
+
+    token_base64 = os.environ.get("TOKEN_PICKLE")
+
+    if token_base64:
+        token_bytes = base64.b64decode(token_base64)
+        creds = pickle.loads(token_bytes)
+
+    if creds and creds.expired and creds.refresh_token:
+        creds.refresh(Request())
 
     return build('drive', 'v3', credentials=creds)
 
@@ -28,7 +39,6 @@ drive_service = obtener_servicio_drive()
 # ==============================
 # FUNCIÓN: CREAR O OBTENER CARPETA
 # ==============================
-
 def obtener_o_crear_carpeta(nombre_carpeta):
     query = f"name='{nombre_carpeta}' and mimeType='application/vnd.google-apps.folder' and trashed=false"
     resultados = drive_service.files().list(q=query, spaces='drive').execute()
@@ -45,17 +55,11 @@ def obtener_o_crear_carpeta(nombre_carpeta):
         return carpeta['id']
 
 # ==============================
-# RUTA PRINCIPAL
-# ==============================
-
 @app.route('/')
 def formulario():
     return render_template('formulario.html')
 
 # ==============================
-# GENERAR PDF
-# ==============================
-
 @app.route('/generar', methods=['POST'])
 def generar_pdf():
     nombre = request.form['nombre']
@@ -124,7 +128,6 @@ def generar_pdf():
     # ==============================
     # SUBIR A DRIVE
     # ==============================
-
     carpeta_id = obtener_o_crear_carpeta("RECIBOS_IPS_AUTOMATICO")
 
     file_metadata = {
@@ -140,11 +143,8 @@ def generar_pdf():
         fields='id'
     ).execute()
 
-    # Eliminar temporales
-    if os.path.exists(archivo_pdf):
-        os.remove(archivo_pdf)
-
-    if os.path.exists(archivo_firma):
-        os.remove(archivo_firma)
-
     return "PDF generado y guardado en Drive correctamente ✅"
+
+# ==============================
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=10000)
