@@ -1,0 +1,7 @@
+credentials.json
+token.pickle
+temp/
+firmas/
+ngrok
+static/qr.png
+__pycache__/
