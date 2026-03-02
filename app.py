@@ -20,7 +20,7 @@ app = Flask(__name__)
 SCOPES = ['https://www.googleapis.com/auth/drive.file']
 
 # ==============================
-# OBTENER SERVICIO DRIVE (SE EJECUTA SOLO CUANDO SE NECESITA)
+# OBTENER SERVICIO DRIVE
 # ==============================
 def obtener_servicio_drive():
     token_base64 = os.environ.get("TOKEN_PICKLE")
@@ -63,7 +63,7 @@ def obtener_o_crear_carpeta(drive_service, nombre_carpeta):
 
 
 # ==============================
-# RUTA PRINCIPAL
+# FORMULARIO
 # ==============================
 @app.route('/')
 def formulario():
@@ -78,8 +78,10 @@ def generar_pdf():
 
     drive_service = obtener_servicio_drive()
 
+    # 🔵 DATOS DEL FORMULARIO
     nombre = request.form['nombre']
     documento = request.form['documento']
+    aseguradora = request.form['aseguradora']   # 👈 NUEVO
     servicio = request.form['servicio']
     modalidad = request.form['modalidad']
     firma_base64 = request.form['firma_base64']
@@ -93,13 +95,17 @@ def generar_pdf():
     archivo_pdf = f"temp/recibo_{documento}_{timestamp}.pdf"
     archivo_firma = f"temp/firma_{timestamp}.png"
 
-    # Guardar firma
+    # ==============================
+    # GUARDAR FIRMA
+    # ==============================
     if firma_base64:
         firma_data = firma_base64.split(",")[1]
         with open(archivo_firma, "wb") as f:
             f.write(base64.b64decode(firma_data))
 
-    # Crear PDF
+    # ==============================
+    # CREAR PDF
+    # ==============================
     doc = SimpleDocTemplate(archivo_pdf, pagesize=letter)
     elementos = []
     estilos = getSampleStyleSheet()
@@ -107,10 +113,11 @@ def generar_pdf():
     estilo_normal = ParagraphStyle(
         'normal',
         parent=estilos['Normal'],
-        fontSize=12.5,
+        fontSize=12,
         leading=16
     )
 
+    # Encabezado opcional
     encabezado_path = "static/encabezado.png"
     if os.path.exists(encabezado_path):
         elementos.append(Image(encabezado_path, width=6*inch, height=1.8*inch))
@@ -120,17 +127,20 @@ def generar_pdf():
     ips = "( X )" if modalidad == "Recibido en IPS" else "(   )"
 
     texto = f"""
-    Por medio de la presente certifico que el usuario: {nombre}
-    identificado con documento: {documento}
-    ha recibido el servicio de: {servicio}
-    prestado de manera: {domicilio} domicilio   {ips} IPS.
+    Por medio de la presente certifico que el usuario: {nombre}<br/>
+    Identificado con documento: {documento}<br/>
+    Afiliado a la aseguradora: {aseguradora}<br/><br/>
+
+    Ha recibido el servicio de: {servicio}<br/>
+    Prestado de manera: {domicilio} Domicilio &nbsp;&nbsp;&nbsp; {ips} IPS.<br/><br/>
 
     Firmo a satisfacción.
     """
 
-    elementos.append(Paragraph(texto.replace("\n", "<br/>"), estilo_normal))
+    elementos.append(Paragraph(texto, estilo_normal))
     elementos.append(Spacer(1, 40))
 
+    # Firma
     if os.path.exists(archivo_firma):
         elementos.append(Image(archivo_firma, width=2.8*inch, height=1.2*inch))
         elementos.append(Spacer(1, 10))
@@ -142,7 +152,7 @@ def generar_pdf():
     doc.build(elementos)
 
     # ==============================
-    # SUBIR A DRIVE (SI ESTÁ DISPONIBLE)
+    # SUBIR A DRIVE
     # ==============================
     if drive_service:
         try:
@@ -172,7 +182,7 @@ def generar_pdf():
 
 
 # ==============================
-# CONFIGURACIÓN RENDER
+# EJECUCIÓN
 # ==============================
 if __name__ == '__main__':
     app.run(
